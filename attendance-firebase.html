@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>نظام حضور RS Store</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap');
+
+  :root {
+    --bg: #0a0f1e;
+    --surface: #111827;
+    --card: #1a2235;
+    --border: #1e3a5f;
+    --accent: #00d4ff;
+    --accent2: #0066ff;
+    --green: #00e676;
+    --red: #ff1744;
+    --orange: #ff9100;
+    --text: #e8f4fd;
+    --muted: #7b9ab8;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Cairo', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at 20% 20%, rgba(0,100,255,0.08) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 80%, rgba(0,212,255,0.06) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper { position: relative; z-index: 1; }
+
+  /* LOADING */
+  #loading-screen {
+    position: fixed; inset: 0;
+    background: var(--bg);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 999;
+  }
+  .loader {
+    width: 50px; height: 50px;
+    border: 4px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-bottom: 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* HEADER */
+  header {
+    background: rgba(17,24,39,0.97);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-icon {
+    width: 38px; height: 38px;
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  .logo-text { font-size: 16px; font-weight: 700; }
+  .logo-sub { font-size: 11px; color: var(--muted); }
+
+  #clock { font-size: 20px; font-weight: 700; color: var(--accent); letter-spacing: 2px; text-align: center; }
+  #date-display { font-size: 11px; color: var(--muted); text-align: center; }
+
+  .tabs { display: flex; background: var(--surface); border-radius: 8px; padding: 3px; gap: 3px; }
+  .tab-btn {
+    padding: 7px 12px;
+    border: none; border-radius: 6px;
+    background: transparent; color: var(--muted);
+    font-family: 'Cairo', sans-serif; font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .tab-btn.active { background: linear-gradient(135deg, var(--accent2), var(--accent)); color: #fff; }
+
+  /* MAIN */
+  main { padding: 20px; max-width: 900px; margin: 0 auto; }
+  .page { display: none; animation: fadeIn 0.3s ease; }
+  .page.active { display: block; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+
+  /* STATS */
+  .stats-bar { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 20px; }
+  .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .stat-label { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; }
+  .stat-value { font-size: 26px; font-weight: 900; margin-top: 2px; }
+  .stat-value.green { color: var(--green); }
+  .stat-value.red { color: var(--red); }
+  .stat-value.blue { color: var(--accent); }
+  .stat-value.orange { color: var(--orange); }
+
+  /* PIN LAYOUT */
+  .pin-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+  .panel { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 22px; }
+  .panel-title { font-size: 14px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 18px; }
+  .panel-title span { color: var(--accent); }
+
+  .pin-display {
+    background: var(--surface); border: 2px solid var(--border);
+    border-radius: 10px; padding: 16px; text-align: center; margin-bottom: 16px; min-height: 90px;
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  .pin-label { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  .pin-dots { display: flex; justify-content: center; gap: 10px; }
+  .dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--border); transition: all 0.15s; }
+  .dot.filled { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 10px rgba(0,212,255,0.5); }
+  .pin-name { font-size: 20px; font-weight: 700; color: var(--accent); margin-top: 8px; min-height: 28px; }
+
+  .keypad { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
+  .key {
+    padding: 16px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 9px; font-family: 'Cairo', sans-serif; font-size: 20px; font-weight: 700;
+    color: var(--text); cursor: pointer; transition: all 0.15s; text-align: center;
+  }
+  .key:hover { background: var(--border); transform: scale(1.03); }
+  .key:active { transform: scale(0.96); }
+  .key.del { background: rgba(255,23,68,0.1); border-color: rgba(255,23,68,0.3); color: var(--red); }
+  .key.clear { background: rgba(255,145,0,0.1); border-color: rgba(255,145,0,0.3); color: var(--orange); font-size: 13px; }
+  .key.zero { grid-column: 2; }
+
+  .action-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+  .btn-checkin, .btn-checkout {
+    padding: 14px; border: none; border-radius: 9px;
+    font-family: 'Cairo', sans-serif; font-size: 15px; font-weight: 700;
+    cursor: pointer; transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .btn-checkin { background: linear-gradient(135deg, #00a844, var(--green)); color: #fff; }
+  .btn-checkout { background: linear-gradient(135deg, #cc0033, var(--red)); color: #fff; }
+  .btn-checkin:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,230,118,0.3); }
+  .btn-checkout:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(255,23,68,0.3); }
+
+  /* LOG */
+  .log-list { display: flex; flex-direction: column; gap: 8px; max-height: 400px; overflow-y: auto; }
+  .log-item {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 9px; padding: 12px 16px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .log-name { font-weight: 700; font-size: 14px; }
+  .log-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .badge { padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+  .badge-in { background: rgba(0,230,118,0.15); color: var(--green); border: 1px solid rgba(0,230,118,0.3); }
+  .badge-out { background: rgba(255,23,68,0.15); color: var(--red); border: 1px solid rgba(255,23,68,0.3); }
+
+  /* EMPLOYEES */
+  .emp-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .page-title { font-size: 22px; font-weight: 900; }
+  .btn-add {
+    padding: 10px 20px;
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    border: none; border-radius: 9px; color: #fff;
+    font-family: 'Cairo', sans-serif; font-size: 14px; font-weight: 700;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .btn-add:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,100,255,0.3); }
+
+  .emp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px,1fr)); gap: 14px; }
+  .emp-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+  .emp-avatar { width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 900; color: #fff; }
+  .emp-name { font-size: 16px; font-weight: 700; }
+  .emp-role { font-size: 12px; color: var(--muted); }
+  .emp-pin-show { background: var(--surface); border: 1px solid var(--border); border-radius: 7px; padding: 7px 12px; font-size: 13px; color: var(--muted); letter-spacing: 3px; font-weight: 600; }
+  .btn-del { padding: 6px 12px; background: rgba(255,23,68,0.1); border: 1px solid rgba(255,23,68,0.3); border-radius: 6px; color: var(--red); font-family: 'Cairo', sans-serif; font-size: 12px; cursor: pointer; }
+
+  /* REPORTS */
+  .report-controls { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+  .report-controls select, .report-controls input {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 7px; padding: 9px 14px; color: var(--text);
+    font-family: 'Cairo', sans-serif; font-size: 13px;
+  }
+  .btn-export {
+    padding: 9px 18px; background: rgba(0,212,255,0.1); border: 1px solid var(--accent);
+    border-radius: 7px; color: var(--accent); font-family: 'Cairo', sans-serif;
+    font-size: 13px; font-weight: 700; cursor: pointer; margin-right: auto;
+  }
+
+  .report-table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
+  .report-table th { background: var(--surface); padding: 12px 16px; text-align: right; font-size: 12px; color: var(--muted); font-weight: 700; border-bottom: 1px solid var(--border); }
+  .report-table td { padding: 12px 16px; font-size: 13px; border-bottom: 1px solid rgba(30,58,95,0.5); }
+  .report-table tr:last-child td { border-bottom: none; }
+  .hours-pill { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 12px; font-weight: 700; background: rgba(0,212,255,0.12); color: var(--accent); }
+
+  /* MODAL */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 200; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 28px; width: 360px; animation: fadeIn 0.3s ease; }
+  .modal h2 { font-size: 18px; font-weight: 800; margin-bottom: 20px; }
+  .form-group { margin-bottom: 14px; }
+  .form-group label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; font-weight: 600; }
+  .form-group input { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 7px; padding: 11px 14px; color: var(--text); font-family: 'Cairo', sans-serif; font-size: 14px; }
+  .form-group input:focus { outline: none; border-color: var(--accent); }
+  .modal-btns { display: flex; gap: 10px; margin-top: 20px; }
+  .btn-save { flex: 1; padding: 12px; background: linear-gradient(135deg, var(--accent2), var(--accent)); border: none; border-radius: 8px; color: #fff; font-family: 'Cairo', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; }
+  .btn-cancel { padding: 12px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--muted); font-family: 'Cairo', sans-serif; font-size: 14px; cursor: pointer; }
+
+  /* TOAST */
+  #toast {
+    position: fixed; bottom: 28px; left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 24px; font-size: 15px; font-weight: 600;
+    z-index: 999; transition: transform 0.3s ease; text-align: center; min-width: 260px;
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+  #toast.success { border-color: var(--green); color: var(--green); }
+  #toast.error { border-color: var(--red); color: var(--red); }
+
+  .empty-state { text-align: center; padding: 40px; color: var(--muted); font-size: 14px; }
+  .empty-state .icon { font-size: 40px; margin-bottom: 10px; }
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: var(--surface); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  @media (max-width: 640px) {
+    main { padding: 14px; }
+    .pin-layout { grid-template-columns: 1fr; }
+    .stats-bar { grid-template-columns: repeat(2,1fr); }
+    header { padding: 10px 14px; }
+    .tabs .tab-btn { padding: 6px 9px; font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+<div id="loading-screen">
+  <div class="loader"></div>
+  <div style="color:var(--muted);font-size:14px">جاري التحميل...</div>
+</div>
+
+<div class="wrapper" id="app" style="display:none">
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">👆</div>
+    <div>
+      <div class="logo-text">RS Store</div>
+      <div class="logo-sub">نظام الحضور والانصراف</div>
+    </div>
+  </div>
+  <div>
+    <div id="clock">00:00:00</div>
+    <div id="date-display"></div>
+  </div>
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showPage('checkin',this)">📋 تسجيل</button>
+    <button class="tab-btn" onclick="showPage('employees',this)">👥 موظفون</button>
+    <button class="tab-btn" onclick="showPage('reports',this)">📊 تقارير</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- CHECK IN/OUT -->
+  <div class="page active" id="page-checkin">
+    <div class="stats-bar">
+      <div class="stat-card"><div class="stat-label">حاضرون</div><div class="stat-value green" id="stat-present">0</div></div>
+      <div class="stat-card"><div class="stat-label">غائبون</div><div class="stat-value red" id="stat-absent">0</div></div>
+      <div class="stat-card"><div class="stat-label">إجمالي</div><div class="stat-value blue" id="stat-total">0</div></div>
+      <div class="stat-card"><div class="stat-label">سجلات اليوم</div><div class="stat-value orange" id="stat-logs">0</div></div>
+    </div>
+
+    <div class="pin-layout">
+      <div class="panel">
+        <div class="panel-title">⌨️ <span>أدخل كودك</span></div>
+        <div class="pin-display">
+          <div class="pin-label">الكود السري</div>
+          <div class="pin-dots" id="pin-dots">
+            <div class="dot"></div><div class="dot"></div>
+            <div class="dot"></div><div class="dot"></div>
+          </div>
+          <div class="pin-name" id="pin-name"></div>
+        </div>
+        <div class="keypad">
+          <button class="key" onclick="pressKey('1')">1</button>
+          <button class="key" onclick="pressKey('2')">2</button>
+          <button class="key" onclick="pressKey('3')">3</button>
+          <button class="key" onclick="pressKey('4')">4</button>
+          <button class="key" onclick="pressKey('5')">5</button>
+          <button class="key" onclick="pressKey('6')">6</button>
+          <button class="key" onclick="pressKey('7')">7</button>
+          <button class="key" onclick="pressKey('8')">8</button>
+          <button class="key" onclick="pressKey('9')">9</button>
+          <button class="key clear" onclick="clearPin()">مسح</button>
+          <button class="key zero" onclick="pressKey('0')">0</button>
+          <button class="key del" onclick="delKey()">⌫</button>
+        </div>
+        <div class="action-btns">
+          <button class="btn-checkin" onclick="doAction('in')">✅ حضور</button>
+          <button class="btn-checkout" onclick="doAction('out')">🚪 انصراف</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">📝 <span>سجل اليوم</span></div>
+        <div class="log-list" id="log-list">
+          <div class="empty-state"><div class="icon">📋</div>لا توجد سجلات اليوم</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EMPLOYEES -->
+  <div class="page" id="page-employees">
+    <div class="emp-header">
+      <div class="page-title">👥 الموظفون</div>
+      <button class="btn-add" onclick="openModal()">+ إضافة موظف</button>
+    </div>
+    <div class="emp-grid" id="emp-grid">
+      <div class="empty-state" style="grid-column:1/-1"><div class="icon">👥</div>لا يوجد موظفون</div>
+    </div>
+  </div>
+
+  <!-- REPORTS -->
+  <div class="page" id="page-reports">
+    <div class="emp-header">
+      <div class="page-title">📊 التقارير</div>
+    </div>
+    <div class="report-controls">
+      <select id="report-emp" onchange="renderReport()">
+        <option value="">كل الموظفين</option>
+      </select>
+      <input type="date" id="report-from" onchange="renderReport()">
+      <input type="date" id="report-to" onchange="renderReport()">
+      <button class="btn-export" onclick="exportCSV()">📥 تصدير Excel</button>
+    </div>
+    <table class="report-table">
+      <thead>
+        <tr>
+          <th>الموظف</th><th>التاريخ</th><th>وقت الحضور</th>
+          <th>وقت الانصراف</th><th>ساعات العمل</th><th>الحالة</th>
+        </tr>
+      </thead>
+      <tbody id="report-body"></tbody>
+    </table>
+  </div>
+
+</main>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h2>➕ إضافة موظف</h2>
+    <div class="form-group"><label>اسم الموظف</label><input type="text" id="m-name" placeholder="مثال: أحمد محمد"></div>
+    <div class="form-group"><label>المسمى الوظيفي</label><input type="text" id="m-role" placeholder="مثال: كاشير"></div>
+    <div class="form-group"><label>الكود السري (4 أرقام)</label><input type="text" id="m-pin" placeholder="مثال: 1234" maxlength="4" inputmode="numeric"></div>
+    <div class="modal-btns">
+      <button class="btn-save" onclick="saveEmployee()">💾 حفظ</button>
+      <button class="btn-cancel" onclick="closeModal()">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- FIREBASE -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, where, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+// ===== إعدادات Firebase - خاصة بمشروعك =====
+const firebaseConfig = {
+  apiKey: "AIzaSyCMfRYA4iZBebjwRvrJoISQI_QGLYdTbass",
+  authDomain: "rs-store-employee.firebaseapp.com",
+  projectId: "rs-store-employee",
+  storageBucket: "rs-store-employee.firebasestorage.app",
+  messagingSenderId: "959274865989",
+  appId: "1:959274865989:web:977c474620127a1b8b5b0a",
+  measurementId: "G-4R15SJ92VZ"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// ===== متغيرات =====
+const COLORS = ['#0066ff','#00d4ff','#00e676','#ff9100','#e040fb','#ff4081'];
+let employees = [];
+let todayLogs = [];
+let allLogs = [];
+let currentPin = '';
+
+// ===== تهيئة =====
+async function init() {
+  await loadEmployees();
+  await loadTodayLogs();
+  await loadAllLogs();
+  document.getElementById('loading-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  updateStats();
+  renderLog();
+  setupReportDates();
+
+  // مراقبة التحديثات اللحظية
+  const today = new Date().toISOString().split('T')[0];
+  onSnapshot(query(collection(db,'logs'), where('dateISO','==',today)), (snap) => {
+    todayLogs = snap.docs.map(d => ({id: d.id, ...d.data()}));
+    renderLog();
+    updateStats();
+  });
+
+  onSnapshot(collection(db,'employees'), (snap) => {
+    employees = snap.docs.map(d => ({id: d.id, ...d.data()}));
+    renderEmployees();
+    updateStats();
+    populateReportFilter();
+  });
+}
+
+// ===== تحميل البيانات =====
+async function loadEmployees() {
+  const snap = await getDocs(collection(db,'employees'));
+  employees = snap.docs.map(d => ({id: d.id, ...d.data()}));
+}
+
+async function loadTodayLogs() {
+  const today = new Date().toISOString().split('T')[0];
+  const q = query(collection(db,'logs'), where('dateISO','==',today));
+  const snap = await getDocs(q);
+  todayLogs = snap.docs.map(d => ({id: d.id, ...d.data()}));
+}
+
+async function loadAllLogs() {
+  const snap = await getDocs(query(collection(db,'logs'), orderBy('dateISO','desc')));
+  allLogs = snap.docs.map(d => ({id: d.id, ...d.data()}));
+}
+
+// ===== PIN =====
+window.pressKey = function(k) {
+  if (currentPin.length >= 4) return;
+  currentPin += k;
+  updateDots();
+  if (currentPin.length === 4) checkEmployee();
+}
+
+window.delKey = function() {
+  currentPin = currentPin.slice(0,-1);
+  updateDots();
+  document.getElementById('pin-name').textContent = '';
+}
+
+window.clearPin = function() {
+  currentPin = '';
+  updateDots();
+  document.getElementById('pin-name').textContent = '';
+}
+
+function updateDots() {
+  document.querySelectorAll('.dot').forEach((d,i) => d.classList.toggle('filled', i < currentPin.length));
+}
+
+function checkEmployee() {
+  const emp = employees.find(e => e.pin === currentPin);
+  const el = document.getElementById('pin-name');
+  if (emp) { el.textContent = '👤 ' + emp.name; el.style.color = 'var(--accent)'; }
+  else { el.textContent = '❌ كود غير صحيح'; el.style.color = 'var(--red)'; }
+}
+
+// ===== تسجيل حضور/انصراف =====
+window.doAction = async function(type) {
+  const emp = employees.find(e => e.pin === currentPin);
+  if (!emp) { showToast('❌ الكود غير صحيح', 'error'); return; }
+
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+  const time = now.toLocaleTimeString('ar-SA', {hour12:false, hour:'2-digit', minute:'2-digit'});
+
+  const empLogs = todayLogs.filter(l => l.empId === emp.id);
+  const lastLog = empLogs[empLogs.length - 1];
+
+  if (type === 'in') {
+    if (lastLog && !lastLog.outTime) { showToast('⚠️ ' + emp.name + ' سبق تسجيل حضوره', 'error'); clearPin(); return; }
+    await addDoc(collection(db,'logs'), {
+      empId: emp.id, empName: emp.name,
+      inTime: time, outTime: null, hours: null,
+      dateISO: today, createdAt: now.toISOString()
+    });
+    showToast('✅ تم تسجيل حضور ' + emp.name + ' - ' + time, 'success');
+  } else {
+    if (!lastLog || lastLog.outTime) { showToast('⚠️ ' + emp.name + ' لم يسجل حضوره', 'error'); clearPin(); return; }
+    const [ih,im] = lastLog.inTime.split(':').map(Number);
+    const [oh,om] = time.split(':').map(Number);
+    const hours = ((oh*60+om)-(ih*60+im)/60).toFixed(1);
+    await updateDoc(doc(db,'logs',lastLog.id), { outTime: time, hours });
+    // تحديث allLogs
+    await loadAllLogs();
+    showToast('👋 تم تسجيل انصراف ' + emp.name + ' - ' + time, 'success');
+  }
+
+  clearPin();
+}
+
+// ===== عرض السجل =====
+function renderLog() {
+  const el = document.getElementById('log-list');
+  const sorted = [...todayLogs].sort((a,b) => b.createdAt?.localeCompare(a.createdAt||''));
+  if (!sorted.length) {
+    el.innerHTML = '<div class="empty-state"><div class="icon">📋</div>لا توجد سجلات اليوم</div>';
+    return;
+  }
+  el.innerHTML = sorted.map(l => `
+    <div class="log-item">
+      <div>
+        <div class="log-name">${l.empName}</div>
+        <div class="log-meta">دخول: ${l.inTime}${l.outTime ? ' | خروج: '+l.outTime : ''}${l.hours ? ' | '+l.hours+' س' : ''}</div>
+      </div>
+      <span class="badge ${l.outTime ? 'badge-out' : 'badge-in'}">${l.outTime ? 'انصراف' : 'حاضر'}</span>
+    </div>
+  `).join('');
+}
+
+// ===== إحصائيات =====
+function updateStats() {
+  const presentIds = new Set(todayLogs.filter(l => !l.outTime).map(l => l.empId));
+  document.getElementById('stat-present').textContent = presentIds.size;
+  document.getElementById('stat-absent').textContent = Math.max(0, employees.length - presentIds.size);
+  document.getElementById('stat-total').textContent = employees.length;
+  document.getElementById('stat-logs').textContent = todayLogs.length;
+}
+
+// ===== الموظفون =====
+function renderEmployees() {
+  const grid = document.getElementById('emp-grid');
+  if (!employees.length) {
+    grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="icon">👥</div>لا يوجد موظفون</div>';
+    return;
+  }
+  grid.innerHTML = employees.map((e,i) => `
+    <div class="emp-card">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="emp-avatar" style="background:${e.color||COLORS[i%COLORS.length]}">${e.name[0]}</div>
+        <div><div class="emp-name">${e.name}</div><div class="emp-role">${e.role}</div></div>
+      </div>
+      <div class="emp-pin-show">🔑 الكود: ${e.pin}</div>
+      <button class="btn-del" onclick="deleteEmployee('${e.id}','${e.name}')">🗑 حذف</button>
+    </div>
+  `).join('');
+}
+
+window.openModal = function() {
+  document.getElementById('modal').classList.add('open');
+  document.getElementById('m-name').value = '';
+  document.getElementById('m-role').value = '';
+  document.getElementById('m-pin').value = '';
+}
+
+window.closeModal = function() {
+  document.getElementById('modal').classList.remove('open');
+}
+
+window.saveEmployee = async function() {
+  const name = document.getElementById('m-name').value.trim();
+  const role = document.getElementById('m-role').value.trim();
+  const pin = document.getElementById('m-pin').value.trim();
+  if (!name || !role || !pin) { showToast('❌ يرجى ملء جميع الحقول', 'error'); return; }
+  if (!/^\d{4}$/.test(pin)) { showToast('❌ الكود يجب أن يكون 4 أرقام', 'error'); return; }
+  if (employees.find(e => e.pin === pin)) { showToast('❌ هذا الكود مستخدم مسبقاً', 'error'); return; }
+  const color = COLORS[employees.length % COLORS.length];
+  await addDoc(collection(db,'employees'), { name, role, pin, color });
+  closeModal();
+  showToast('✅ تم إضافة ' + name, 'success');
+}
+
+window.deleteEmployee = async function(id, name) {
+  if (!confirm('هل تريد حذف ' + name + '؟')) return;
+  await deleteDoc(doc(db,'employees',id));
+  showToast('🗑 تم حذف ' + name, 'error');
+}
+
+// ===== تقارير =====
+function setupReportDates() {
+  const today = new Date();
+  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+  document.getElementById('report-from').value = firstDay.toISOString().split('T')[0];
+  document.getElementById('report-to').value = today.toISOString().split('T')[0];
+}
+
+function populateReportFilter() {
+  const sel = document.getElementById('report-emp');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">كل الموظفين</option>' +
+    employees.map(e => `<option value="${e.id}" ${e.id===cur?'selected':''}>${e.name}</option>`).join('');
+}
+
+window.renderReport = async function() {
+  await loadAllLogs();
+  const empId = document.getElementById('report-emp').value;
+  const from = document.getElementById('report-from').value;
+  const to = document.getElementById('report-to').value;
+
+  let filtered = allLogs;
+  if (empId) filtered = filtered.filter(l => l.empId === empId);
+  if (from) filtered = filtered.filter(l => l.dateISO >= from);
+  if (to) filtered = filtered.filter(l => l.dateISO <= to);
+
+  const tbody = document.getElementById('report-body');
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:28px;color:var(--muted)">لا توجد سجلات</td></tr>';
+    return;
+  }
+  tbody.innerHTML = filtered.map(l => `
+    <tr>
+      <td><strong>${l.empName}</strong></td>
+      <td>${l.dateISO}</td>
+      <td>${l.inTime}</td>
+      <td>${l.outTime||'—'}</td>
+      <td>${l.hours ? `<span class="hours-pill">${l.hours} س</span>` : '—'}</td>
+      <td><span class="badge ${l.outTime?'badge-in':'badge-out'}">${l.outTime?'مكتمل':'بدون انصراف'}</span></td>
+    </tr>
+  `).join('');
+}
+
+window.exportCSV = function() {
+  const rows = [['الموظف','التاريخ','وقت الحضور','وقت الانصراف','ساعات العمل']];
+  allLogs.forEach(l => rows.push([l.empName, l.dateISO, l.inTime, l.outTime||'', l.hours||'']));
+  const csv = '\uFEFF' + rows.map(r=>r.join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'attendance-' + new Date().toISOString().split('T')[0] + '.csv';
+  a.click();
+}
+
+// ===== مساعدات =====
+window.showPage = function(id, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  btn.classList.add('active');
+  if (id==='employees') { renderEmployees(); }
+  if (id==='reports') { populateReportFilter(); renderReport(); }
+}
+
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'show ' + type;
+  clearTimeout(window._tt);
+  window._tt = setTimeout(() => t.className = '', 3000);
+}
+
+// ساعة
+function tick() {
+  const now = new Date();
+  document.getElementById('clock').textContent = now.toLocaleTimeString('ar-SA',{hour12:false});
+  document.getElementById('date-display').textContent = now.toLocaleDateString('ar-SA',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+}
+tick(); setInterval(tick, 1000);
+
+// تشغيل
+init();
+</script>
+</body>
+</html>
